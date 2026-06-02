@@ -1,0 +1,31 @@
+services:
+  web:
+    build: .
+    container_name: agency-os-dev
+
+    working_dir: /app
+
+    command: bash
+
+    stdin_open: true
+    tty: true
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - .:/app:Z
+      - /app/node_modules
+      - pnpm-store:/pnpm/store
+
+    environment:
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+volumes:
+  pnpm-store:
+networks:
+  default:
+    name: agency-os-dev-network

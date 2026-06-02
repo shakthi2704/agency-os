@@ -1,0 +1,111 @@
+// ={
+//   "name": "Next.js Dev Environment",
+
+//   "build": {
+//     "dockerfile": "Dockerfile"
+//   },
+
+//   "postCreateCommand": "corepack enable && pnpm install",
+
+//   "customizations": {
+//     "vscode": {
+//       "extensions": [
+//         "PKief.material-icon-theme",
+//         "zhuangtongfa.material-theme",
+//         "esbenp.prettier-vscode",
+//         "dbaeumer.vscode-eslint",
+//         "eamodio.gitlens",
+//         "bradlc.vscode-tailwindcss"
+//       ],
+//       "settings": {
+//         "workbench.iconTheme": "material-icon-theme",
+//         "workbench.startupEditor": "none",
+//         "workbench.colorTheme": "One Dark Pro Night Flat",
+
+//         "git.enableSmartCommit": true,
+//         "git.autofetch": true,
+//         "git.openRepositoryInParentFolders": "never",
+
+//         "editor.formatOnSave": true,
+//         "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+//         "[javascript]": {
+//           "editor.defaultFormatter": "esbenp.prettier-vscode"
+//         },
+//         "[javascriptreact]": {
+//           "editor.defaultFormatter": "esbenp.prettier-vscode"
+//         },
+//         "[typescript]": {
+//           "editor.defaultFormatter": "esbenp.prettier-vscode"
+//         },
+//         "[typescriptreact]": {
+//           "editor.defaultFormatter": "esbenp.prettier-vscode"
+//         },
+
+//         "files.autoSave": "onFocusChange",
+//         "workbench.editor.enablePreview": false,
+
+//         "typescript.updateImportsOnFileMove.enabled": "always",
+
+//         "terminal.integrated.defaultProfile.linux": "bash",
+//         "terminal.integrated.initialHint": false
+//       }
+//     }
+//   }
+// }
+
+
+
+
+{
+  "name": "Next.js Dev Environment",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "PKief.material-icon-theme",
+        "zhuangtongfa.material-theme",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "eamodio.gitlens",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "workbench.iconTheme": "material-icon-theme",
+        "workbench.startupEditor": "none",
+        "workbench.colorTheme": "One Dark Pro Night Flat",
+
+        "git.enableSmartCommit": true,
+        "git.autofetch": true,
+        "git.openRepositoryInParentFolders": "never",
+
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+        "[javascript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[javascriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+
+        "prettier.semi": false,
+
+        "files.autoSave": "onFocusChange",
+        "workbench.editor.enablePreview": false,
+
+        "js/ts.updateImportsOnFileMove.enabled": "always",
+
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.initialHint": false
+      }
+    }
+  }
+}s
