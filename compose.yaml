@@ -1,10 +1,9 @@
 services:
   web:
     build: .
-    container_name: agency-os-dev
+    container_name: agency-os-web
 
     working_dir: /app
-
     command: bash
 
     stdin_open: true
@@ -15,7 +14,6 @@ services:
 
     volumes:
       - .:/app:Z
-      - /app/node_modules
       - pnpm-store:/pnpm/store
 
     environment:
@@ -26,6 +24,4 @@ services:
 
 volumes:
   pnpm-store:
-networks:
-  default:
-    name: agency-os-dev-network
+    name: pnpm-store-global
