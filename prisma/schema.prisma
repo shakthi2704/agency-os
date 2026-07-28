@@ -1,16 +1,19 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// ============================================
+// AgencyOS — Prisma Schema v1
+// ============================================
 
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
+
 datasource db {
   provider = "postgresql"
 }
-// prisma/schema.prisma
+// ============================================
+// ENUMS
+// ============================================
 
 enum UserStatus {
   ACTIVE
@@ -166,4 +169,751 @@ enum EntityType {
   PROPOSAL
   USER
   DOCUMENT
+}
+
+// ============================================
+// DOMAIN: Users & RBAC
+// ============================================
+
+model User {
+  id            String     @id @default(cuid())
+  name          String
+  email         String     @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  status        UserStatus @default(ACTIVE)
+
+  // Timestamps
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+
+  // Auth.js
+  accounts      Account[]
+  sessions      Session[]
+
+  // RBAC
+  userRoles     UserRole[]
+
+  // Relations
+  assignedLeads    Lead[]          @relation("LeadAssignee")
+  createdLeads     Lead[]          @relation("LeadCreator")
+  assignedTasks    Task[]          @relation("TaskAssignee")
+  createdTasks     Task[]          @relation("TaskCreator")
+  createdProjects  Project[]       @relation("ProjectCreator")
+  createdInvoices  Invoice[]       @relation("InvoiceCreator")
+  assignedTickets  Ticket[]        @relation("TicketAssignee")
+  createdTickets   Ticket[]        @relation("TicketCreator")
+  projectMembers   ProjectMember[]
+  taskComments     TaskComment[]
+  ticketComments   TicketComment[]
+  notifications    Notification[]
+  activityLogs     ActivityLog[]
+  followUps        FollowUp[]
+
+  @@index([email])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Role {
+  id          String     @id @default(cuid())
+  name        RoleType   @unique
+  description String?
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  module      String
+  action      String
+  description String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+
+  @@unique([module, action])
+  @@index([module])
+  @@map("permissions")
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@map("role_permissions")
+}
+
+// ============================================
+// AUTH.JS TABLES
+// ============================================
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================
+// DOMAIN: Sales
+// ============================================
+
+model LeadSource {
+  id        String   @id @default(cuid())
+  name      String   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leads     Lead[]
+
+  @@map("lead_sources")
+}
+
+model Lead {
+  id          String       @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  company     String?
+  website     String?
+  status      LeadStatus   @default(NEW)
+  priority    LeadPriority @default(MEDIUM)
+  value       Decimal?     @db.Decimal(10, 2)
+  notes       String?
+
+  sourceId      String?
+  assignedToId  String?
+  createdById   String
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+  contactedAt   DateTime?
+  closedAt      DateTime?
+
+  convertedClientId String? @unique
+
+  source          LeadSource?    @relation(fields: [sourceId], references: [id])
+  assignedTo      User?          @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  createdBy       User           @relation("LeadCreator", fields: [createdById], references: [id])
+  convertedClient Client?        @relation(fields: [convertedClientId], references: [id])
+  activities      LeadActivity[]
+  followUps       FollowUp[]
+  proposals       Proposal[]
+
+  @@index([status])
+  @@index([assignedToId])
+  @@index([sourceId])
+  @@index([deletedAt])
+  @@map("leads")
+}
+
+model LeadActivity {
+  id          String   @id @default(cuid())
+  leadId      String
+  userId      String?
+  type        String
+  description String
+  occurredAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([occurredAt])
+  @@map("lead_activities")
+}
+
+model FollowUp {
+  id           String    @id @default(cuid())
+  leadId       String
+  assignedToId String
+  notes        String?
+  dueAt        DateTime
+  completedAt  DateTime?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedTo   User      @relation(fields: [assignedToId], references: [id])
+
+  @@index([leadId])
+  @@index([assignedToId])
+  @@index([dueAt])
+  @@map("follow_ups")
+}
+
+model Proposal {
+  id        String         @id @default(cuid())
+  leadId    String
+  title     String
+  content   String?
+  status    ProposalStatus @default(DRAFT)
+  sentAt    DateTime?
+  viewedAt  DateTime?
+  expiresAt DateTime?
+
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  lead      Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  quotation Quotation?
+
+  @@index([leadId])
+  @@index([status])
+  @@map("proposals")
+}
+
+model Quotation {
+  id           String          @id @default(cuid())
+  proposalId   String          @unique
+  status       QuotationStatus @default(DRAFT)
+  currency     String          @default("USD")
+  subtotal     Decimal         @db.Decimal(10, 2)
+  discountType String?
+  discount     Decimal?        @db.Decimal(10, 2)
+  tax          Decimal?        @db.Decimal(10, 2)
+  total        Decimal         @db.Decimal(10, 2)
+  notes        String?
+  validUntil   DateTime?
+
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  proposal     Proposal        @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  items        QuotationItem[]
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  description String
+  quantity    Decimal   @db.Decimal(10, 2)
+  unitPrice   Decimal   @db.Decimal(10, 2)
+  total       Decimal   @db.Decimal(10, 2)
+  sortOrder   Int       @default(0)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+  @@map("quotation_items")
+}
+
+// ============================================
+// DOMAIN: Clients
+// ============================================
+
+model Client {
+  id       String       @id @default(cuid())
+  name     String
+  email    String?
+  phone    String?
+  website  String?
+  industry String?
+  address  String?
+  city     String?
+  country  String?
+  status   ClientStatus @default(ACTIVE)
+  notes    String?
+
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  deletedAt DateTime?
+
+  lead            Lead?
+  contacts        ClientContact[]
+  clientNotes     ClientNote[]
+  clientDocuments ClientDocument[]
+  onboarding      ClientOnboarding?
+  projects        Project[]
+  tickets         Ticket[]
+  invoices        Invoice[]
+  documents       Document[]
+
+  @@index([status])
+  @@index([deletedAt])
+  @@map("clients")
+}
+
+model ClientContact {
+  id        String   @id @default(cuid())
+  clientId  String
+  name      String
+  email     String?
+  phone     String?
+  jobTitle  String?
+  isPrimary Boolean  @default(false)
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([isPrimary])
+  @@map("client_contacts")
+}
+
+model ClientNote {
+  id        String   @id @default(cuid())
+  clientId  String
+  authorId  String?
+  content   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("client_notes")
+}
+
+model ClientDocument {
+  id           String             @id @default(cuid())
+  clientId     String
+  name         String
+  fileUrl      String
+  fileType     String?
+  fileSize     Int?
+  visibility   DocumentVisibility @default(INTERNAL)
+  uploadedById String?
+
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  client       Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("client_documents")
+}
+
+model ClientOnboarding {
+  id                   String           @id @default(cuid())
+  clientId             String           @unique
+  status               OnboardingStatus @default(PENDING)
+  contractSigned       Boolean          @default(false)
+  invoiceSent          Boolean          @default(false)
+  kickoffScheduled     Boolean          @default(false)
+  accessesShared       Boolean          @default(false)
+  onboardingCallDone   Boolean          @default(false)
+  internalBriefingDone Boolean          @default(false)
+  notes                String?
+  completedAt          DateTime?
+
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  client               Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_onboarding")
+}
+
+// ============================================
+// DOMAIN: Projects
+// ============================================
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime?
+  dueDate     DateTime?
+  completedAt DateTime?
+
+  clientId    String
+  createdById String?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+
+  client      Client        @relation(fields: [clientId], references: [id])
+  createdBy   User?         @relation("ProjectCreator", fields: [createdById], references: [id])
+  members     ProjectMember[]
+  milestones  Milestone[]
+  tasks       Task[]
+  tickets     Ticket[]
+  invoices    Invoice[]
+  documents   Document[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  role      String?
+
+  createdAt DateTime @default(now())
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+model Milestone {
+  id          String    @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  dueDate     DateTime?
+  completedAt DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+
+  @@index([projectId])
+  @@map("milestones")
+}
+
+model Task {
+  id           String       @id @default(cuid())
+  title        String
+  description  String?
+  status       TaskStatus   @default(TODO)
+  priority     TaskPriority @default(MEDIUM)
+  dueDate      DateTime?
+  completedAt  DateTime?
+  sortOrder    Int          @default(0)
+
+  projectId    String
+  milestoneId  String?
+  assignedToId String?
+  createdById  String?
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone    Milestone?   @relation(fields: [milestoneId], references: [id])
+  assignedTo   User?        @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  createdBy    User?        @relation("TaskCreator", fields: [createdById], references: [id])
+  comments     TaskComment[]
+
+  @@index([projectId])
+  @@index([milestoneId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("tasks")
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  authorId  String
+  content   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id])
+
+  @@index([taskId])
+  @@map("task_comments")
+}
+
+// ============================================
+// DOMAIN: Support
+// ============================================
+
+model Ticket {
+  id           String         @id @default(cuid())
+  title        String
+  description  String?
+  status       TicketStatus   @default(OPEN)
+  priority     TicketPriority @default(MEDIUM)
+  resolvedAt   DateTime?
+  closedAt     DateTime?
+
+  clientId     String
+  projectId    String?
+  assignedToId String?
+  createdById  String?
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+
+  client       Client         @relation(fields: [clientId], references: [id])
+  project      Project?       @relation(fields: [projectId], references: [id])
+  assignedTo   User?          @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  createdBy    User?          @relation("TicketCreator", fields: [createdById], references: [id])
+  comments     TicketComment[]
+
+  @@index([clientId])
+  @@index([projectId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([priority])
+  @@index([deletedAt])
+  @@map("tickets")
+}
+
+model TicketComment {
+  id         String   @id @default(cuid())
+  ticketId   String
+  authorId   String
+  content    String
+  isInternal Boolean  @default(false)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author     User     @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
+  @@index([isInternal])
+  @@map("ticket_comments")
+}
+
+// ============================================
+// DOMAIN: Finance
+// ============================================
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  status        InvoiceStatus @default(DRAFT)
+  currency      String        @default("USD")
+  subtotal      Decimal       @db.Decimal(10, 2)
+  discountType  String?
+  discount      Decimal?      @db.Decimal(10, 2)
+  tax           Decimal?      @db.Decimal(10, 2)
+  total         Decimal       @db.Decimal(10, 2)
+  notes         String?
+  terms         String?
+
+  issuedAt      DateTime?
+  dueDate       DateTime?
+  paidAt        DateTime?
+
+  clientId      String
+  projectId     String?
+  createdById   String?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  client        Client        @relation(fields: [clientId], references: [id])
+  project       Project?      @relation(fields: [projectId], references: [id])
+  createdBy     User?         @relation("InvoiceCreator", fields: [createdById], references: [id])
+  items         InvoiceItem[]
+  payments      Payment[]
+
+  @@index([clientId])
+  @@index([projectId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([deletedAt])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  total       Decimal  @db.Decimal(10, 2)
+  sortOrder   Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  invoiceId     String
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod @default(BANK_TRANSFER)
+  reference     String?
+  notes         String?
+  paidAt        DateTime
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+// ============================================
+// DOMAIN: System
+// ============================================
+
+model Document {
+  id           String             @id @default(cuid())
+  name         String
+  description  String?
+  fileUrl      String
+  fileType     String?
+  fileSize     Int?
+  visibility   DocumentVisibility @default(INTERNAL)
+  tags         String[]
+
+  clientId     String?
+  projectId    String?
+  uploadedById String?
+
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  client       Client?            @relation(fields: [clientId], references: [id])
+  project      Project?           @relation(fields: [projectId], references: [id])
+
+  @@index([clientId])
+  @@index([projectId])
+  @@index([visibility])
+  @@map("documents")
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  type       NotificationType
+  title      String
+  body       String?
+  isRead     Boolean          @default(false)
+  readAt     DateTime?
+  entityType EntityType?
+  entityId   String?
+
+  createdAt  DateTime         @default(now())
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([entityType, entityId])
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id          String         @id @default(cuid())
+  userId      String?
+  action      ActivityAction
+  entityType  EntityType
+  entityId    String
+  description String?
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt   DateTime       @default(now())
+
+  user        User?          @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
 }

@@ -23,12 +23,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         async jwt({ token, user }) {
             if (user) {
                 token.id = user.id
+
+                const userRoles = await (prisma as any).userRole.findMany({
+                    where: { userId: user.id },
+                    include: {
+                        role: {
+                            include: {
+                                rolePermissions: {
+                                    include: { permission: true },
+                                },
+                            },
+                        },
+                    },
+                })
+
+                const roleNames = new Set<string>()
+                const permissionKeys = new Set<string>()
+
+                for (const userRole of userRoles) {
+                    roleNames.add(userRole.role.name)
+                    for (const rp of userRole.role.rolePermissions) {
+                        permissionKeys.add(`${rp.permission.module}:${rp.permission.action}`)
+                    }
+                }
+
+                token.roles = [...roleNames]
+                token.permissions = [...permissionKeys]
             }
             return token
         },
         async session({ session, token }) {
             if (token) {
                 session.user.id = token.id as string
+                session.user.roles = (token.roles as string[]) ?? []
+                session.user.permissions = (token.permissions as string[]) ?? []
             }
             return session
         },
